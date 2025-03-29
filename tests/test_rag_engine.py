@@ -79,10 +79,11 @@ def test_add_documents(rag_engine):
 def test_retrieve_documents(rag_engine):
     """Test retrieving documents for a query"""
     query = "test query"
-    results = rag_engine.retrieve(query)
+    results, distances = rag_engine.retrieve(query)
 
     # Verify retrieval
     assert len(results) == 1
+    assert len(distances) == 1
     assert results[0] == "Sample response"
 
 

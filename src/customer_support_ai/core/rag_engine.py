@@ -103,9 +103,14 @@ class RAGEngine:
         results = self.collection.query(
             query_embeddings=[query_embedding],
             n_results=n_results,
-            include=["documents", "metadatas"],  # Include metadata in results
+            include=[
+                "documents",
+                "metadatas",
+                "distances",
+            ],  # Include metadata in results
         )
 
+        distances = results["distances"][0]
         # Add logging to check results
         print(f"Found {len(results['documents'][0])} documents")
         if len(results["documents"][0]) > 0:
@@ -113,7 +118,7 @@ class RAGEngine:
                 f"First document: {results['documents'][0][0][:100]}..."
             )  # Print first 100 chars
 
-        return results["documents"][0]
+        return results["documents"][0], distances
 
     def generate_response(
         self, query: str, context: List[str] = None
@@ -128,7 +133,7 @@ class RAGEngine:
             Dictionary containing response and metadata
         """
         # Retrieve relevant documents
-        retrieved_docs = self.retrieve(query)
+        retrieved_docs, distances = self.retrieve(query)
 
         # Prepare context
         context_str = "\n".join(retrieved_docs) if retrieved_docs else ""
@@ -159,9 +164,13 @@ Please provide a helpful response:"""
 
         response = completion.choices[0].message.content
 
+        formatted_documents = [
+            f"{doc}\nSimilarity Score: {1 - distance:.4f}"  # Convert distance to similarity
+            for doc, distance in zip(retrieved_docs, distances)
+        ]
         return {
             "response": response,
-            "retrieved_documents": retrieved_docs,
+            "retrieved_documents": formatted_documents,
             "model": settings.MODEL_NAME,
         }
 
