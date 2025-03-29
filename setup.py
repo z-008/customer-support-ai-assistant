@@ -20,6 +20,17 @@ setup(
         "python-multipart>=0.0.9",
         "datasets>=2.17.1",
         "tqdm>=4.66.2",
+        "rank-bm25>=0.2.2",
     ],
+    extras_require={
+        "dev": [
+            "pytest>=8.0.0",
+            "pytest-cov>=4.1.0",  # for coverage reporting
+            "black>=24.2.0",  # for code formatting
+            "isort>=5.13.2",  # for import sorting
+            "flake8>=7.0.0",  # for linting
+            "mypy>=1.8.0",  # for type checking
+        ]
+    },
     python_requires=">=3.8",
 )

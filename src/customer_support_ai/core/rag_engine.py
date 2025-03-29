@@ -11,6 +11,9 @@ from ..core.config import settings
 import json
 import os
 import logging
+from rank_bm25 import BM25Okapi
+from sklearn.metrics.pairwise import cosine_similarity
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
@@ -165,7 +168,7 @@ Please provide a helpful response:"""
     def evaluate_response(
         self, query: str, response: str, retrieved_docs: List[str]
     ) -> Dict[str, float]:
-        """Evaluate the quality of the response.
+        """Evaluate the quality of the response using multiple metrics.
 
         Args:
             query: The original query
@@ -175,7 +178,7 @@ Please provide a helpful response:"""
         Returns:
             Dictionary containing evaluation metrics
         """
-        # Simple evaluation metrics
+        # 1. Basic word overlap metrics (existing)
         relevance_score = len(
             set(query.lower().split()) & set(response.lower().split())
         ) / len(query.split())
@@ -184,4 +187,25 @@ Please provide a helpful response:"""
             & set(" ".join(retrieved_docs).lower().split())
         ) / len(response.split())
 
-        return {"relevance_score": relevance_score, "context_usage": context_usage}
+        # 2. BM25 scoring
+        # Tokenize documents
+        tokenized_docs = [doc.lower().split() for doc in retrieved_docs]
+        bm25 = BM25Okapi(tokenized_docs)
+
+        # Get BM25 score for response against retrieved docs
+        response_tokens = response.lower().split()
+        bm25_score = np.mean(bm25.get_scores(response_tokens))
+
+        # 3. Semantic similarity using sentence embeddings
+        query_embedding = self.encoder.encode([query])
+        response_embedding = self.encoder.encode([response])
+        semantic_similarity = cosine_similarity(query_embedding, response_embedding)[0][
+            0
+        ]
+
+        return {
+            "relevance_score": relevance_score,
+            "context_usage": context_usage,
+            "bm25_score": float(bm25_score),
+            "semantic_similarity": float(semantic_similarity),
+        }

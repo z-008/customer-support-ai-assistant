@@ -59,7 +59,7 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 
 3. Install the package in development mode:
 ```bash
-pip install -e .
+pip install -e ".[dev]"
 ```
 
 Alternatively, you can install dependencies directly from requirements.txt:
