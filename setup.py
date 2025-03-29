@@ -21,6 +21,7 @@ setup(
         "datasets>=2.17.1",
         "tqdm>=4.66.2",
         "rank-bm25>=0.2.2",
+        "cachetools>=5.0.0",
     ],
     extras_require={
         "dev": [

@@ -76,6 +76,12 @@ GROQ_API_KEY=your_api_key_here
 STORAGE_TYPE=sqlite  # or 'csv'
 DATABASE_URL=customer_support.db  # for SQLite
 CSV_STORAGE_PATH=interactions.csv  # for CSV
+
+# Caching
+ENABLE_RESPONSE_CACHE=true
+CACHE_TTL_HOURS=1  
+CACHE_MAX_SIZE=1000 
+
 ```
 
 ## Storage Options

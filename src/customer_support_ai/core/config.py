@@ -37,6 +37,11 @@ class Settings(BaseSettings):
     DATABASE_URL: str = os.getenv("DATABASE_URL", "customer_support.db")
     CSV_STORAGE_PATH: str = os.getenv("CSV_STORAGE_PATH", "interactions.csv")
 
+    # Add these to your existing settings
+    ENABLE_RESPONSE_CACHE: bool = bool(os.getenv("ENABLE_RESPONSE_CACHE", "false"))
+    CACHE_TTL_HOURS: int = int(os.getenv("CACHE_TTL_HOURS", "1"))
+    CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", "1000"))
+
     class Config:
         env_file = ".env"
 

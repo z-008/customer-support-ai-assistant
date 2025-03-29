@@ -14,6 +14,9 @@ import logging
 from rank_bm25 import BM25Okapi
 from sklearn.metrics.pairwise import cosine_similarity
 import numpy as np
+from functools import lru_cache
+from datetime import datetime, timedelta
+from cachetools import TTLCache
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +48,21 @@ class RAGEngine:
             name="customer_support", metadata={"hnsw:space": "cosine"}
         )
         self.groq_client = groq.Groq(api_key=settings.GROQ_API_KEY)
+
+        # Initialize cache only if enabled
+        self.response_cache = None
+        if settings.ENABLE_RESPONSE_CACHE:
+            self.response_cache = TTLCache(
+                maxsize=settings.CACHE_MAX_SIZE,
+                ttl=timedelta(hours=settings.CACHE_TTL_HOURS).total_seconds(),
+            )
+            logger.info(
+                "Response cache enabled with TTL: %d hours, max size: %d",
+                settings.CACHE_TTL_HOURS,
+                settings.CACHE_MAX_SIZE,
+            )
+        else:
+            logger.info("Response cache disabled")
 
     def __del__(self):
         """Cleanup is handled automatically by ChromaDB"""
@@ -123,7 +141,7 @@ class RAGEngine:
     def generate_response(
         self, query: str, context: List[str] = None
     ) -> Dict[str, Any]:
-        """Generate a response using RAG.
+        """Generate a response using RAG with optional caching.
 
         Args:
             query: The customer's query
@@ -132,6 +150,14 @@ class RAGEngine:
         Returns:
             Dictionary containing response and metadata
         """
+        # Check cache if enabled
+        if self.response_cache is not None:
+            cache_key = query.lower().strip()
+            cached_response = self.response_cache.get(cache_key)
+            if cached_response:
+                logger.info("Cache hit for query: %s", cache_key)
+                return cached_response
+
         # Retrieve relevant documents
         retrieved_docs, distances = self.retrieve(query)
 
@@ -168,11 +194,19 @@ Please provide a helpful response:"""
             f"{doc}\nSimilarity Score: {1 - distance:.4f}"  # Convert distance to similarity
             for doc, distance in zip(retrieved_docs, distances)
         ]
-        return {
+
+        result = {
             "response": response,
             "retrieved_documents": formatted_documents,
             "model": settings.MODEL_NAME,
         }
+
+        # Cache the response if enabled
+        if self.response_cache is not None:
+            self.response_cache[cache_key] = result
+            logger.info("Cached response for query: %s", cache_key)
+
+        return result
 
     def evaluate_response(
         self, query: str, response: str, retrieved_docs: List[str]
