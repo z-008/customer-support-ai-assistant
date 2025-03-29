@@ -33,6 +33,7 @@ customer-support-ai-assistant/
 │   │       └── dataset_loader.py
 │   └── main.py
 ├── tests/
+│   ├── test_rag_engine.py
 ├── requirements.txt
 ├── setup.py
 └── README.md
