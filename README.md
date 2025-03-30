@@ -181,10 +181,88 @@ pytest tests/
 
 ## Architecture
 
+The system is built with a modular architecture that combines RAG (Retrieval-Augmented Generation) with efficient caching and storage mechanisms.
+
+### System Architecture
+
+```mermaid
+graph TD
+    A[Client] -->|HTTP Requests| B[FastAPI Server]
+    B -->|Query Processing| C[RAG Engine]
+    
+    subgraph RAG_Engine
+        C -->|Query Expansion| D[LLM Groq]
+        C -->|Vector Search| E[ChromaDB]
+        C -->|Response Generation| F[Response Generator]
+    end
+    
+    subgraph Storage_Layer
+        G[SQLite/CSV Storage] -->|Conversation History| B
+        E -->|Vector Storage| H[ChromaDB Storage]
+    end
+    
+    subgraph Caching
+        I[TTL Cache] -->|Cached Responses| C
+    end
+    
+    subgraph UI_Layer
+        J[Streamlit UI] -->|User Interface| A
+    end
+    
+    C -->|Response| B
+    B -->|Response| A
+```
+
+### Response Generation Flow
+
+```mermaid
+sequenceDiagram
+    participant Client
+    participant API
+    participant RAGEngine
+    participant Cache
+    participant ChromaDB
+    participant LLM
+
+    Client->>API: Send Query
+    API->>RAGEngine: Process Query
+    
+    Note over RAGEngine: 1. Query Expansion
+    RAGEngine->>LLM: Expand Query with Context
+    LLM-->>RAGEngine: Return Expanded Query
+    
+    Note over RAGEngine: 2. Cache Check
+    RAGEngine->>Cache: Check Cache (expanded_query)
+    alt Cache Hit
+        Cache-->>RAGEngine: Return Cached Response
+    else Cache Miss
+        Note over RAGEngine: 3. Document Retrieval
+        RAGEngine->>ChromaDB: Retrieve Documents
+        ChromaDB-->>RAGEngine: Return Relevant Docs
+        
+        Note over RAGEngine: 4. Relevance Filtering
+        Note over RAGEngine: Filter by Threshold
+        
+        Note over RAGEngine: 5. Response Generation
+        RAGEngine->>LLM: Generate Response
+        LLM-->>RAGEngine: Return Response
+        
+        Note over RAGEngine: 6. Cache Update
+        RAGEngine->>Cache: Store Response
+    end
+    
+    RAGEngine-->>API: Return Response
+    API-->>Client: Send Response
+```
+
+### Key Components
+
 - **RAG Engine**: Uses ChromaDB for vector storage and retrieval, combined with Groq LLM for response generation
 - **Storage**: Flexible storage system with SQLite and CSV options
 - **API**: FastAPI for handling HTTP requests and responses
 - **Evaluation**: Basic metrics for response quality and relevance
+- **Caching**: TTL-based response caching for improved performance
+- **UI**: Streamlit-based interface for user interaction
 
 ## Contributing
 
