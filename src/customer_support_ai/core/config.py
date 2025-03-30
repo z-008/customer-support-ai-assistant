@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     """Application settings"""
 
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
-    MODEL_NAME: str = "llama-3.1-8b-instant"  # Using Mixtral model from Groq
+    MODEL_NAME: str = "llama-3.1-8b-instant"  # Using llama model from Groq
     CHROMA_PERSIST_DIR: str = "./chroma_db"
     VECTOR_DIMENSION: int = 768
     MAX_HISTORY_LENGTH: int = 5
