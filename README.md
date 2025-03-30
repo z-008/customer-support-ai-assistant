@@ -82,6 +82,9 @@ ENABLE_RESPONSE_CACHE=true
 CACHE_TTL_HOURS=1  
 CACHE_MAX_SIZE=1000 
 
+# Relevance threshold for RAG
+RELEVANCE_THRESHOLD=0.6
+
 ```
 
 ## Storage Options

@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     ENABLE_RESPONSE_CACHE: bool = bool(os.getenv("ENABLE_RESPONSE_CACHE", "false"))
     CACHE_TTL_HOURS: int = int(os.getenv("CACHE_TTL_HOURS", "1"))
     CACHE_MAX_SIZE: int = int(os.getenv("CACHE_MAX_SIZE", "1000"))
+    RELEVANCE_THRESHOLD: float = float(os.getenv("RELEVANCE_THRESHOLD", "0.6"))
 
     class Config:
         env_file = ".env"

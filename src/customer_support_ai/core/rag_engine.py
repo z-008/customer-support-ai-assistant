@@ -2,7 +2,7 @@
 RAG Engine implementation for the Customer Support AI Assistant
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
@@ -17,52 +17,102 @@ import numpy as np
 from functools import lru_cache
 from datetime import datetime, timedelta
 from cachetools import TTLCache
-
-logger = logging.getLogger(__name__)
+from tqdm import tqdm
+import time
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+# Create a formatter
+formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+
+# Create and configure stream handler
+stream_handler = logging.StreamHandler()
+stream_handler.setFormatter(formatter)
+
+# Configure logger
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)  # Set to INFO level to see the log messages
+logger.addHandler(stream_handler)
 
 
 class RAGEngine:
-    """RAG Engine for customer support query processing"""
+    _instance = None
+    _initialized = False
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super(RAGEngine, cls).__new__(cls)
+        return cls._instance
 
     def __init__(self):
         """Initialize the RAG engine with necessary components"""
+
+        print("Initializing RAG Engine...")
         # Debug log to verify API key
         logger.info(
             f"Initializing RAG engine with API key present: {bool(settings.GROQ_API_KEY)}"
         )
 
-        self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
-
-        # Updated ChromaDB client initialization
-        self.client = chromadb.Client(
-            Settings(
-                persist_directory=settings.CHROMA_PERSIST_DIR,
-                is_persistent=True,  # This ensures persistence
-                anonymized_telemetry=False,
-            )
-        )
-
-        self.collection = self.client.get_or_create_collection(
-            name="customer_support", metadata={"hnsw:space": "cosine"}
-        )
-        self.groq_client = groq.Groq(api_key=settings.GROQ_API_KEY)
-
-        # Initialize cache only if enabled
-        self.response_cache = None
-        if settings.ENABLE_RESPONSE_CACHE:
-            self.response_cache = TTLCache(
-                maxsize=settings.CACHE_MAX_SIZE,
-                ttl=timedelta(hours=settings.CACHE_TTL_HOURS).total_seconds(),
-            )
+        # Create progress bar for overall initialization
+        steps = ["API Check", "Model Loading", "ChromaDB Setup", "Cache Setup"]
+        with tqdm(total=len(steps), desc="Overall Progress") as pbar:
+            # API Key Check
+            logger.info("Checking API key...")
+            time.sleep(0.5)  # Add small delay to make progress visible
+            pbar.set_description("Checking API key")
             logger.info(
-                "Response cache enabled with TTL: %d hours, max size: %d",
-                settings.CACHE_TTL_HOURS,
-                settings.CACHE_MAX_SIZE,
+                f"Initializing RAG engine with API key present: {bool(settings.GROQ_API_KEY)}"
             )
-        else:
-            logger.info("Response cache disabled")
+            pbar.update(1)
+
+            # Model Loading
+            pbar.set_description("Loading ML model")
+            logger.info("Loading sentence transformer model...")
+            with tqdm(total=100, desc="Loading Model", leave=False) as model_pbar:
+                self.encoder = SentenceTransformer("all-MiniLM-L6-v2")
+                model_pbar.update(100)
+            logger.info("Sentence transformer model loaded")
+            pbar.update(1)
+
+            # ChromaDB Setup
+            pbar.set_description("Setting up ChromaDB")
+            logger.info("Initializing ChromaDB...")
+            with tqdm(total=100, desc="ChromaDB Setup", leave=False) as db_pbar:
+                self.client = chromadb.Client(
+                    Settings(
+                        persist_directory=settings.CHROMA_PERSIST_DIR,
+                        is_persistent=True,  # This ensures persistence
+                        anonymized_telemetry=False,
+                    )
+                )
+                db_pbar.update(50)
+
+                self.collection = self.client.get_or_create_collection(
+                    name="customer_support", metadata={"hnsw:space": "cosine"}
+                )
+                db_pbar.update(50)
+            logger.info("ChromaDB initialized")
+            pbar.update(1)
+
+            # Cache Setup
+            pbar.set_description("Setting up cache")
+            self.groq_client = groq.Groq(api_key=settings.GROQ_API_KEY)
+            self.response_cache = None
+
+            if settings.ENABLE_RESPONSE_CACHE:
+                self.response_cache = TTLCache(
+                    maxsize=settings.CACHE_MAX_SIZE,
+                    ttl=timedelta(hours=settings.CACHE_TTL_HOURS).total_seconds(),
+                )
+                logger.info(
+                    "Response cache enabled with TTL: %d hours, max size: %d",
+                    settings.CACHE_TTL_HOURS,
+                    settings.CACHE_MAX_SIZE,
+                )
+            else:
+                logger.info("Response cache disabled")
+            pbar.update(1)
+
+        print("\nRAG Engine initialization complete! ✨")
 
     def __del__(self):
         """Cleanup is handled automatically by ChromaDB"""
@@ -138,9 +188,50 @@ class RAGEngine:
 
         return results["documents"][0], distances
 
-    def generate_response(
-        self, query: str, context: List[str] = None
-    ) -> Dict[str, Any]:
+    def _expand_query(self, query: str, context: str = None) -> str:
+        """Expand the query using conversation context.
+
+        Args:
+            query: Original user query
+            context: Optional list of previous responses
+
+        Returns:
+            str: Expanded query incorporating context
+        """
+        if not context:
+            return query
+
+        prompt = f"""Given the following conversation context and current query, 
+        create a simplified, concise query that captures the core question. Focus on maintaining the original intent.
+        Remove any unnecessary preamble, context, or verbose explanations while maintaining the essential question.
+        Resolve any coreferences (pronouns, demonstratives, etc.) by replacing them with their specific referents.
+
+        Previous Context:
+        {' '.join(context)}
+
+        Current Query: {query}
+
+        Generate a clear, concise query. Strip away any unnecessary preamble. Do not include any other text than the query."""
+
+        completion = self.groq_client.chat.completions.create(
+            model=settings.MODEL_NAME,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant tasked with expanding queries.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            temperature=settings.TEMPERATURE,
+            max_tokens=settings.MAX_TOKENS,
+        )
+
+        expanded_query = completion.choices[0].message.content
+
+        logger.info("Expanded query: %s", expanded_query)
+        return expanded_query
+
+    def generate_response(self, query: str, context: str = None) -> Dict[str, Any]:
         """Generate a response using RAG with optional caching.
 
         Args:
@@ -150,29 +241,44 @@ class RAGEngine:
         Returns:
             Dictionary containing response and metadata
         """
+
+        # Expand query using context if available
+        expanded_query = self._expand_query(query, context)
+
         # Check cache if enabled
         if self.response_cache is not None:
-            cache_key = query.lower().strip()
+            cache_key = expanded_query.lower().strip()
             cached_response = self.response_cache.get(cache_key)
             if cached_response:
                 logger.info("Cache hit for query: %s", cache_key)
                 return cached_response
 
-        # Retrieve relevant documents
-        retrieved_docs, distances = self.retrieve(query)
+        # Retrieve relevant documents using expanded query
+        retrieved_docs, distances = self.retrieve(expanded_query)
 
-        # Prepare context
-        context_str = "\n".join(retrieved_docs) if retrieved_docs else ""
+        # Use threshold from settings
+        relevant_docs = []
+        for doc, distance in zip(retrieved_docs, distances):
+            if (1 - distance) >= settings.RELEVANCE_THRESHOLD:
+                relevant_docs.append(doc)
+
+        # Prepare context - only use documents that pass the threshold
+        context_str = "\n".join(relevant_docs) if relevant_docs else ""
 
         # Prepare prompt
-        prompt = f"""You are a helpful customer support assistant. Use the following context to answer the customer's question. If the context is not relevant, provide a general helpful response.
+        prompt = f"""You are a helpful customer support assistant. First determine if the provided context is relevant to answering the customer's question.
 
-Context:
-{context_str}
+        Context:
+        {context_str}
 
-Customer Question: {query}
+        Customer Question: {expanded_query}
 
-Please provide a helpful response:"""
+        If the context is relevant:
+        - Provide a specific response based on the context directly
+        If the context is NOT relevant:
+        - Provide a general helpful response directly
+
+        Important: Do not include any preamble about context relevance or your reasoning process. Start your response immediately with the answer."""
 
         # Generate response using Groq
         completion = self.groq_client.chat.completions.create(
@@ -193,9 +299,11 @@ Please provide a helpful response:"""
         formatted_documents = [
             f"{doc}\nSimilarity Score: {1 - distance:.4f}"  # Convert distance to similarity
             for doc, distance in zip(retrieved_docs, distances)
+            if (1 - distance) >= settings.RELEVANCE_THRESHOLD
         ]
 
         result = {
+            "expanded_query": expanded_query,
             "response": response,
             "retrieved_documents": formatted_documents,
             "model": settings.MODEL_NAME,
@@ -225,19 +333,24 @@ Please provide a helpful response:"""
         relevance_score = len(
             set(query.lower().split()) & set(response.lower().split())
         ) / len(query.split())
-        context_usage = len(
-            set(response.lower().split())
-            & set(" ".join(retrieved_docs).lower().split())
-        ) / len(response.split())
 
-        # 2. BM25 scoring
-        # Tokenize documents
-        tokenized_docs = [doc.lower().split() for doc in retrieved_docs]
-        bm25 = BM25Okapi(tokenized_docs)
+        # Metrics that depend on retrieved_docs
+        if retrieved_docs:
+            context_usage = len(
+                set(response.lower().split())
+                & set(" ".join(retrieved_docs).lower().split())
+            ) / len(response.split())
 
-        # Get BM25 score for response against retrieved docs
-        response_tokens = response.lower().split()
-        bm25_score = np.mean(bm25.get_scores(response_tokens))
+            # BM25 scoring
+            # Tokenize documents
+            tokenized_docs = [doc.lower().split() for doc in retrieved_docs]
+            bm25 = BM25Okapi(tokenized_docs)
+            # Get BM25 score for response against retrieved docs
+            response_tokens = response.lower().split()
+            bm25_score = float(np.mean(bm25.get_scores(response_tokens)))
+        else:
+            context_usage = 0.0
+            bm25_score = 0.0
 
         # 3. Semantic similarity using sentence embeddings
         query_embedding = self.encoder.encode([query])

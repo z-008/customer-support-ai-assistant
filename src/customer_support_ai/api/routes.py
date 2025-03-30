@@ -36,6 +36,7 @@ class QueryRequest(BaseModel):
 class Response(BaseModel):
     """Response model for generated responses"""
 
+    expanded_query: str
     response: str
     retrieved_documents: List[str]
     evaluation_metrics: Dict[str, float]
@@ -58,21 +59,27 @@ async def generate_response(request: QueryRequest):
             )
 
         # Generate response using RAG
+        formatted_history = ""
+        if history:
+            for h in history:
+                formatted_history += f"User Query: {h.query}\n"
+                formatted_history += f"AI Response: {h.response}\n\n"
+
         result = rag_engine.generate_response(
             query=request.query,
-            context=[h.response for h in history] if history else None,
+            context=formatted_history if history else None,
         )
 
         # Evaluate response
         evaluation_metrics = rag_engine.evaluate_response(
-            query=request.query,
+            query=result["expanded_query"],
             response=result["response"],
             retrieved_docs=result["retrieved_documents"],
         )
 
         # Create and store interaction
         interaction = Interaction(
-            query=request.query,
+            query=result["expanded_query"],
             response=result["response"],
             retrieved_documents=result["retrieved_documents"],
             evaluation_metrics=evaluation_metrics,
@@ -81,6 +88,7 @@ async def generate_response(request: QueryRequest):
         db.store_interaction(interaction)
 
         return {
+            "expanded_query": result["expanded_query"],
             "response": result["response"],
             "retrieved_documents": result["retrieved_documents"],
             "evaluation_metrics": evaluation_metrics,
