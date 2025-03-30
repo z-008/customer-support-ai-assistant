@@ -165,7 +165,7 @@ class RAGEngine:
             n_results: Number of results to retrieve
 
         Returns:
-            List of retrieved document texts
+            List of retrieved document texts and distances
         """
         query_embedding = self.encoder.encode(query).tolist()
         results = self.collection.query(
@@ -193,7 +193,7 @@ class RAGEngine:
 
         Args:
             query: Original user query
-            context: Optional list of previous responses
+            context: previous responses
 
         Returns:
             str: Expanded query incorporating context
@@ -236,7 +236,7 @@ class RAGEngine:
 
         Args:
             query: The customer's query
-            context: Optional list of previous context
+            context: previous context
 
         Returns:
             Dictionary containing response and metadata
