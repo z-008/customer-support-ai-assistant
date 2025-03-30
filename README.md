@@ -29,8 +29,10 @@ customer-support-ai-assistant/
 │   │   │   ├── models.py
 │   │   │   ├── sqlite_storage.py
 │   │   │   └── csv_storage.py
-│   │   └── utils/
-│   │       └── dataset_loader.py
+│   │   ├── utils/
+│   │   │     └── dataset_loader.py
+│   │   └── ui/
+│   │       └── app.py
 │   └── main.py
 ├── tests/
 │   ├── test_rag_engine.py
@@ -117,6 +119,13 @@ python src/main.py
 ```
 
 The API will be available at `http://localhost:8000`
+
+3. Start the Streamlit UI (if want to run UI):
+```bash
+streamlit run src/customer_support_ai/ui/app.py
+```
+
+The UI will open in your default web browser at `http://localhost:8501`
 
 ## API Endpoints
 

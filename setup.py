@@ -22,6 +22,7 @@ setup(
         "tqdm>=4.66.2",
         "rank-bm25>=0.2.2",
         "cachetools>=5.0.0",
+        "streamlit>=1.32.0",
     ],
     extras_require={
         "dev": [

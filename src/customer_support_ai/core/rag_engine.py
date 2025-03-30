@@ -266,8 +266,13 @@ class RAGEngine:
         context_str = "\n".join(relevant_docs) if relevant_docs else ""
 
         # Prepare prompt
-        prompt = f"""You are a helpful customer support assistant. First determine if the provided context is relevant to answering the customer's question.
+        prompt = f"""You are a friendly and helpful customer support assistant. 
 
+        If the customer's message is a greeting (like hi, hello, hey):
+        - Respond with a warm greeting and briefly mention you're here to help with any questions
+        
+        Otherwise, for regular questions, determine if the provided context is relevant to answering the customer's question:
+        
         Context:
         {context_str}
 
