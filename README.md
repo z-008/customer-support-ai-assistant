@@ -10,6 +10,7 @@ An AI-powered customer support assistant that uses Retrieval-Augmented Generatio
 - Flexible storage options (SQLite or CSV)
 - FastAPI-based REST API
 - Vector database (ChromaDB) for efficient retrieval
+- Cached responses
 
 ## Project Structure
 
